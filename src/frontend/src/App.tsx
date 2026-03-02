@@ -25,17 +25,6 @@ function Footer() {
       <div className="text-xs text-muted-foreground">
         Xeta Defender v1.421.2760.0 &mdash; Definitions: 1.421.2760.0
       </div>
-      <div className="text-xs text-muted-foreground">
-        &copy; {new Date().getFullYear()}.{" "}
-        <a
-          href={`https://caffeine.ai?utm_source=caffeine-footer&utm_medium=referral&utm_content=${encodeURIComponent(window.location.hostname)}`}
-          className="hover:text-foreground transition-colors"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Built with ♥ using caffeine.ai
-        </a>
-      </div>
     </footer>
   );
 }
@@ -47,7 +36,25 @@ export default function App() {
   const [isScanning, setIsScanning] = useState(false);
   const [scanProgress, setScanProgress] = useState(0);
   const [scanType, setScanType] = useState("Quick Scan");
+  const [darkMode, setDarkMode] = useState(() => {
+    return localStorage.getItem("xeta-theme") !== "light";
+  });
   const scanIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Apply theme class to <html>
+  useEffect(() => {
+    const html = document.documentElement;
+    if (darkMode) {
+      html.classList.remove("light");
+    } else {
+      html.classList.add("light");
+    }
+    localStorage.setItem("xeta-theme", darkMode ? "dark" : "light");
+  }, [darkMode]);
+
+  const toggleDarkMode = useCallback(() => {
+    setDarkMode((prev) => !prev);
+  }, []);
 
   // Persist state to localStorage whenever it changes
   useEffect(() => {
@@ -333,14 +340,22 @@ export default function App() {
   return (
     <div className="flex h-screen overflow-hidden bg-background">
       <Toaster
-        theme="dark"
-        position="top-right"
+        theme={darkMode ? "dark" : "light"}
+        position="bottom-right"
         toastOptions={{
-          style: {
-            background: "oklch(0.15 0.022 258)",
-            border: "1px solid oklch(0.22 0.025 255)",
-            color: "oklch(0.93 0.015 220)",
-          },
+          style: darkMode
+            ? {
+                background: "oklch(0.18 0.022 258)",
+                border: "1px solid oklch(0.28 0.025 255)",
+                color: "oklch(0.93 0.015 220)",
+                opacity: 1,
+              }
+            : {
+                background: "#ffffff",
+                border: "1px solid #e2e8f0",
+                color: "#0f172a",
+                opacity: 1,
+              },
         }}
       />
 
@@ -369,6 +384,8 @@ export default function App() {
           protectionActive={isProtected}
           mobileMenuOpen={mobileMenuOpen}
           onToggleMobileMenu={() => setMobileMenuOpen((v) => !v)}
+          darkMode={darkMode}
+          onToggleDarkMode={toggleDarkMode}
         />
         <div className="flex-1 overflow-y-auto">{renderPage()}</div>
         <Footer />

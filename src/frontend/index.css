@@ -85,12 +85,67 @@
     --sidebar-ring: 0.62 0.2 240;
   }
 
+  /* Xeta Defender — Light Theme */
+  .light {
+    --background: 0.97 0.008 250;
+    --foreground: 0.15 0.025 255;
+    --card: 0.99 0.005 255;
+    --card-foreground: 0.15 0.025 255;
+    --popover: 0.98 0.006 252;
+    --popover-foreground: 0.15 0.025 255;
+
+    --primary: 0.5 0.22 245;
+    --primary-foreground: 0.98 0.005 260;
+
+    --secondary: 0.92 0.012 255;
+    --secondary-foreground: 0.25 0.025 255;
+
+    --muted: 0.93 0.01 252;
+    --muted-foreground: 0.45 0.03 248;
+
+    --accent: 0.55 0.18 205;
+    --accent-foreground: 0.98 0.005 260;
+
+    --destructive: 0.55 0.22 25;
+    --destructive-foreground: 0.98 0 0;
+
+    --border: 0.85 0.018 252;
+    --input: 0.88 0.015 252;
+    --ring: 0.5 0.22 245;
+
+    --success: 0.55 0.18 145;
+    --success-foreground: 0.98 0.01 145;
+    --warning: 0.6 0.18 75;
+    --warning-foreground: 0.15 0.02 75;
+    --critical: 0.52 0.24 20;
+    --critical-foreground: 0.98 0.01 20;
+
+    --chart-1: 0.5 0.22 245;
+    --chart-2: 0.55 0.18 145;
+    --chart-3: 0.6 0.18 75;
+    --chart-4: 0.55 0.22 25;
+    --chart-5: 0.55 0.18 205;
+
+    --sidebar: 0.94 0.012 252;
+    --sidebar-foreground: 0.15 0.025 255;
+    --sidebar-primary: 0.5 0.22 245;
+    --sidebar-primary-foreground: 0.98 0.005 260;
+    --sidebar-accent: 0.9 0.014 252;
+    --sidebar-accent-foreground: 0.15 0.025 255;
+    --sidebar-border: 0.82 0.018 252;
+    --sidebar-ring: 0.5 0.22 245;
+  }
+
   * {
     @apply border-border;
   }
 
   html {
     color-scheme: dark;
+  }
+
+  html.light {
+    color-scheme: light;
   }
 
   body {

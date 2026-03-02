@@ -200,11 +200,6 @@ export default function VirusThreat({
             <Switch
               checked={state.realtimeProtection}
               onCheckedChange={onToggleRealtime}
-              className={cn(
-                state.realtimeProtection
-                  ? "[&>[data-state=checked]]:bg-xeta-green"
-                  : "",
-              )}
             />
           </div>
           {!state.realtimeProtection && (

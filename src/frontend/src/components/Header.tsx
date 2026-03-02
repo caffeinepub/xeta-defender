@@ -20,7 +20,16 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
-import { Bell, CheckCheck, Menu, Settings, Shield, X } from "lucide-react";
+import {
+  Bell,
+  CheckCheck,
+  Menu,
+  Moon,
+  Settings,
+  Shield,
+  Sun,
+  X,
+} from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import type { Page } from "./Sidebar";
@@ -30,6 +39,8 @@ interface HeaderProps {
   protectionActive: boolean;
   mobileMenuOpen: boolean;
   onToggleMobileMenu: () => void;
+  darkMode: boolean;
+  onToggleDarkMode: () => void;
 }
 
 const PAGE_TITLES: Record<Page, string> = {
@@ -73,6 +84,7 @@ const INITIAL_NOTIFICATIONS: Notification[] = [
 interface AppSettings {
   notificationSounds: boolean;
   autoScanOnStartup: boolean;
+  darkMode: boolean;
   updateInterval: string;
 }
 
@@ -81,6 +93,8 @@ export default function Header({
   protectionActive,
   mobileMenuOpen,
   onToggleMobileMenu,
+  darkMode,
+  onToggleDarkMode,
 }: HeaderProps) {
   // ── Notifications state ───────────────────────────────────────────────────
   const [notifications, setNotifications] = useState<Notification[]>(
@@ -98,10 +112,14 @@ export default function Header({
   const [settings, setSettings] = useState<AppSettings>({
     notificationSounds: true,
     autoScanOnStartup: false,
+    darkMode: darkMode,
     updateInterval: "daily",
   });
 
   const saveSettings = () => {
+    if (settings.darkMode !== darkMode) {
+      onToggleDarkMode();
+    }
     setSettingsOpen(false);
     toast.success("Settings saved");
   };
@@ -297,19 +315,29 @@ export default function Header({
 
             <div className="border-t border-border" />
 
-            {/* Dark theme (read-only) */}
+            {/* Dark / Light theme toggle */}
             <div className="flex items-center justify-between">
-              <div>
-                <Label className="text-sm font-medium text-foreground">
-                  Dark theme
-                </Label>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  Visual theme for the application
-                </p>
+              <div className="flex items-center gap-3">
+                {settings.darkMode ? (
+                  <Moon className="w-4 h-4 text-primary" />
+                ) : (
+                  <Sun className="w-4 h-4 text-xeta-amber" />
+                )}
+                <div>
+                  <Label className="text-sm font-medium text-foreground">
+                    {settings.darkMode ? "Dark mode" : "Light mode"}
+                  </Label>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Toggle between dark and light theme
+                  </p>
+                </div>
               </div>
-              <span className="text-xs font-medium px-2.5 py-1 rounded-md bg-muted text-muted-foreground border border-border">
-                Always on
-              </span>
+              <Switch
+                checked={settings.darkMode}
+                onCheckedChange={(v) =>
+                  setSettings((s) => ({ ...s, darkMode: v }))
+                }
+              />
             </div>
 
             <div className="border-t border-border" />
