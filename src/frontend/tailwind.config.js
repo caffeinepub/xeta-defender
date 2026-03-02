@@ -16,8 +16,9 @@ export default {
     },
     extend: {
       fontFamily: {
-        mono: ["JetBrains Mono", "Geist Mono", "Courier New", "monospace"],
-        display: ["JetBrains Mono", "Geist Mono", "monospace"],
+        sans: ["Outfit", "Sora", "system-ui", "sans-serif"],
+        display: ["Outfit", "Sora", "system-ui", "sans-serif"],
+        mono: ["JetBrains Mono", "Courier New", "monospace"],
       },
       colors: {
         border: "oklch(var(--border))",
@@ -70,13 +71,15 @@ export default {
           border: "oklch(var(--sidebar-border))",
           ring: "oklch(var(--sidebar-ring))",
         },
-        // Game-specific colors (for UI overlays only)
+        // Xeta semantic colors
         xeta: {
-          cyan: "oklch(0.75 0.18 195)",
-          magenta: "oklch(0.65 0.22 330)",
-          yellow: "oklch(0.88 0.22 95)",
-          purple: "oklch(0.6 0.22 280)",
-          space: "oklch(0.08 0.015 260)",
+          navy: "oklch(0.1 0.022 260)",
+          blue: "oklch(0.62 0.2 240)",
+          cyan: "oklch(0.7 0.16 200)",
+          green: "oklch(0.65 0.18 145)",
+          amber: "oklch(0.75 0.18 75)",
+          red: "oklch(0.58 0.22 25)",
+          slate: "oklch(0.18 0.018 255)",
         },
       },
       borderRadius: {
@@ -85,9 +88,12 @@ export default {
         sm: "calc(var(--radius) - 4px)",
       },
       boxShadow: {
-        xs: "0 1px 2px 0 rgba(0,0,0,0.05)",
-        "cyan-glow": "0 0 20px oklch(0.75 0.18 195 / 0.6)",
-        "magenta-glow": "0 0 20px oklch(0.65 0.22 330 / 0.6)",
+        xs: "0 1px 2px 0 rgba(0,0,0,0.3)",
+        card: "0 2px 12px rgba(0,0,0,0.4), 0 0 0 1px oklch(0.22 0.025 255)",
+        "glow-blue": "0 0 20px oklch(0.62 0.2 240 / 0.3)",
+        "glow-green": "0 0 20px oklch(0.65 0.18 145 / 0.4)",
+        "glow-red": "0 0 20px oklch(0.58 0.22 25 / 0.4)",
+        panel: "inset 0 1px 0 oklch(1 0 0 / 0.05), 0 4px 24px rgba(0,0,0,0.5)",
       },
       keyframes: {
         "accordion-down": {
@@ -98,20 +104,36 @@ export default {
           from: { height: "var(--radix-accordion-content-height)" },
           to: { height: "0" },
         },
-        "pulse-glow": {
-          "0%, 100%": { opacity: "1" },
-          "50%": { opacity: "0.4" },
+        "shield-pulse": {
+          "0%, 100%": { transform: "scale(1)", opacity: "1" },
+          "50%": { transform: "scale(1.05)", opacity: "0.85" },
         },
-        scanline: {
-          "0%": { transform: "translateY(-100%)" },
-          "100%": { transform: "translateY(100vh)" },
+        "scan-sweep": {
+          "0%": { transform: "translateY(-100%)", opacity: "0" },
+          "10%": { opacity: "1" },
+          "90%": { opacity: "1" },
+          "100%": { transform: "translateY(100%)", opacity: "0" },
+        },
+        "fade-in": {
+          from: { opacity: "0", transform: "translateY(8px)" },
+          to: { opacity: "1", transform: "translateY(0)" },
+        },
+        "slide-in": {
+          from: { transform: "translateX(-16px)", opacity: "0" },
+          to: { transform: "translateX(0)", opacity: "1" },
+        },
+        ping: {
+          "75%, 100%": { transform: "scale(2)", opacity: "0" },
         },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
         "accordion-up": "accordion-up 0.2s ease-out",
-        "pulse-glow": "pulse-glow 1.5s ease-in-out infinite",
-        scanline: "scanline 8s linear infinite",
+        "shield-pulse": "shield-pulse 2s ease-in-out infinite",
+        "scan-sweep": "scan-sweep 2s linear infinite",
+        "fade-in": "fade-in 0.3s ease-out",
+        "slide-in": "slide-in 0.25s ease-out",
+        ping: "ping 1s cubic-bezier(0,0,0.2,1) infinite",
       },
     },
   },

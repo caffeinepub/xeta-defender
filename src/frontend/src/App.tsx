@@ -1,543 +1,377 @@
+import Header from "@/components/Header";
+import MobileNav from "@/components/MobileNav";
+import Sidebar from "@/components/Sidebar";
+import type { Page } from "@/components/Sidebar";
+import AppBrowser from "@/components/pages/AppBrowser";
+import Dashboard from "@/components/pages/Dashboard";
+import DeviceSecurity from "@/components/pages/DeviceSecurity";
+import Firewall from "@/components/pages/Firewall";
+import PasswordChecker from "@/components/pages/PasswordChecker";
+import SecurityChecklist from "@/components/pages/SecurityChecklist";
+import VirusThreat from "@/components/pages/VirusThreat";
 import { Toaster } from "@/components/ui/sonner";
+import {
+  type SecurityState,
+  generateThreat,
+  loadState,
+  saveState,
+} from "@/store/securityStore";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import type { ScoreEntry, backendInterface } from "./backend.d";
-import { createActorWithConfig } from "./config";
-import { initGameData } from "./game/init";
-import { renderFrame } from "./game/render";
-import type { GameData, InputState } from "./game/types";
-import { updateGame } from "./game/update";
 
-// ─── Constants ────────────────────────────────────────────────────────────────
-const FONT_MONO = "'JetBrains Mono', 'Geist Mono', monospace";
-
-export default function App() {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const gameDataRef = useRef<GameData | null>(null);
-  const inputRef = useRef<InputState>({
-    left: false,
-    right: false,
-    shoot: false,
-    pause: false,
-  });
-  const animFrameRef = useRef<number>(0);
-  const lastTimeRef = useRef<number>(0);
-  const timeRef = useRef<number>(0);
-  const prevPauseRef = useRef<boolean>(false);
-  const actorRef = useRef<backendInterface | null>(null);
-
-  // Stable refs to avoid stale closures in game loop and event handlers
-  const startGameRef = useRef<(() => void) | null>(null);
-  const highScoreRef = useRef<number>(0);
-
-  // React state for UI
-  const [uiState, setUiState] = useState<{
-    gameState: "start" | "playing" | "paused" | "wave-complete" | "game-over";
-    score: number;
-    wave: number;
-    lives: number;
-  }>({ gameState: "start", score: 0, wave: 1, lives: 3 });
-
-  const [playerName, setPlayerName] = useState("");
-  const [submitted, setSubmitted] = useState(false);
-  const [leaderboard, setLeaderboard] = useState<ScoreEntry[]>([]);
-  const [loadingLeaderboard, setLoadingLeaderboard] = useState(false);
-
-  // ── Init actor ────────────────────────────────────────────────────────────
-  useEffect(() => {
-    void (async () => {
-      try {
-        actorRef.current = await createActorWithConfig();
-      } catch (err) {
-        console.error("Failed to init actor:", err);
-      }
-    })();
-  }, []);
-
-  // ── Load leaderboard ──────────────────────────────────────────────────────
-  const fetchLeaderboard = useCallback(async () => {
-    setLoadingLeaderboard(true);
-    try {
-      if (!actorRef.current) {
-        actorRef.current = await createActorWithConfig();
-      }
-      const scores = await actorRef.current.getTopScores();
-      setLeaderboard(scores);
-      const topScore = scores.length > 0 ? Number(scores[0].score) : 0;
-      highScoreRef.current = topScore;
-      if (gameDataRef.current) {
-        gameDataRef.current.highScore = topScore;
-      }
-    } catch (err) {
-      console.error("Failed to load leaderboard:", err);
-    } finally {
-      setLoadingLeaderboard(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    void fetchLeaderboard();
-  }, [fetchLeaderboard]);
-
-  // ── Submit score ──────────────────────────────────────────────────────────
-  const handleSubmitScore = useCallback(async () => {
-    const name = playerName.trim();
-    if (!name || !gameDataRef.current) return;
-    try {
-      if (!actorRef.current) {
-        actorRef.current = await createActorWithConfig();
-      }
-      await actorRef.current.submitScore(
-        name,
-        BigInt(gameDataRef.current.score),
-      );
-      setSubmitted(true);
-      toast.success("Score submitted!");
-      await fetchLeaderboard();
-    } catch (err) {
-      console.error("Failed to submit score:", err);
-      toast.error("Failed to submit score. Try again.");
-    }
-  }, [playerName, fetchLeaderboard]);
-
-  // ── Start game (stable ref) ───────────────────────────────────────────────
-  const startGame = useCallback(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const w = canvas.clientWidth || window.innerWidth;
-    const h = canvas.clientHeight || window.innerHeight;
-    const hs = gameDataRef.current?.highScore ?? highScoreRef.current;
-    gameDataRef.current = initGameData(w, h, 0, hs);
-    gameDataRef.current.gameState = "playing";
-    gameDataRef.current.waveStartTime = Date.now();
-    setSubmitted(false);
-    setPlayerName("");
-    setUiState({ gameState: "playing", score: 0, wave: 1, lives: 3 });
-  }, []);
-
-  // Keep ref in sync
-  useEffect(() => {
-    startGameRef.current = startGame;
-  }, [startGame]);
-
-  const restartGame = useCallback(() => {
-    startGame();
-  }, [startGame]);
-
-  // ── Game loop ─────────────────────────────────────────────────────────────
-  const gameLoopRef = useRef<((timestamp: number) => void) | null>(null);
-
-  useEffect(() => {
-    function gameLoop(timestamp: number) {
-      const canvas = canvasRef.current;
-      const ctx = canvas?.getContext("2d");
-      if (!canvas || !ctx || !gameDataRef.current) {
-        animFrameRef.current = requestAnimationFrame(gameLoop);
-        return;
-      }
-
-      const dt =
-        lastTimeRef.current > 0
-          ? (timestamp - lastTimeRef.current) / 1000
-          : 0.016;
-      lastTimeRef.current = timestamp;
-      timeRef.current += dt;
-
-      const input = inputRef.current;
-
-      // Handle pause toggle
-      if (input.pause && !prevPauseRef.current) {
-        const g = gameDataRef.current;
-        if (g.gameState === "playing") {
-          gameDataRef.current = { ...g, gameState: "paused" };
-        } else if (g.gameState === "paused") {
-          gameDataRef.current = { ...g, gameState: "playing" };
-          lastTimeRef.current = timestamp;
-        }
-      }
-      prevPauseRef.current = input.pause;
-
-      // Update
-      if (
-        gameDataRef.current.gameState === "playing" ||
-        gameDataRef.current.gameState === "wave-complete"
-      ) {
-        if (
-          gameDataRef.current.gameState === "playing" &&
-          gameDataRef.current.waveStartTime === 0
-        ) {
-          gameDataRef.current = {
-            ...gameDataRef.current,
-            waveStartTime: Date.now(),
-          };
-        }
-        gameDataRef.current = updateGame(gameDataRef.current, dt, input);
-      }
-
-      // Render
-      renderFrame(ctx, gameDataRef.current, timeRef.current);
-
-      // Sync React state (batched, minimal updates)
-      const g = gameDataRef.current;
-      setUiState((prev) => {
-        if (
-          prev.gameState !== g.gameState ||
-          prev.score !== g.score ||
-          prev.lives !== g.player.lives
-        ) {
-          return {
-            gameState: g.gameState,
-            score: g.score,
-            wave: g.wave,
-            lives: g.player.lives,
-          };
-        }
-        return prev;
-      });
-
-      animFrameRef.current = requestAnimationFrame(gameLoop);
-    }
-
-    gameLoopRef.current = gameLoop;
-
-    function onKeyDown(e: KeyboardEvent) {
-      switch (e.code) {
-        case "ArrowLeft":
-        case "KeyA":
-          inputRef.current.left = true;
-          e.preventDefault();
-          break;
-        case "ArrowRight":
-        case "KeyD":
-          inputRef.current.right = true;
-          e.preventDefault();
-          break;
-        case "Space":
-        case "ArrowUp":
-          inputRef.current.shoot = true;
-          e.preventDefault();
-          break;
-        case "KeyP":
-        case "Escape":
-          inputRef.current.pause = true;
-          e.preventDefault();
-          break;
-      }
-      if (e.code === "Space" && gameDataRef.current?.gameState === "start") {
-        startGameRef.current?.();
-      }
-    }
-
-    function onKeyUp(e: KeyboardEvent) {
-      switch (e.code) {
-        case "ArrowLeft":
-        case "KeyA":
-          inputRef.current.left = false;
-          break;
-        case "ArrowRight":
-        case "KeyD":
-          inputRef.current.right = false;
-          break;
-        case "Space":
-        case "ArrowUp":
-          inputRef.current.shoot = false;
-          break;
-        case "KeyP":
-        case "Escape":
-          inputRef.current.pause = false;
-          break;
-      }
-    }
-
-    function onResize() {
-      const canvas = canvasRef.current;
-      if (!canvas) return;
-      const dpr = window.devicePixelRatio || 1;
-      const w = window.innerWidth;
-      const h = window.innerHeight;
-      canvas.width = w * dpr;
-      canvas.height = h * dpr;
-      canvas.style.width = `${w}px`;
-      canvas.style.height = `${h}px`;
-      const ctx2 = canvas.getContext("2d");
-      if (ctx2) ctx2.scale(dpr, dpr);
-      if (gameDataRef.current) {
-        const g = gameDataRef.current;
-        if (g.gameState === "start") {
-          gameDataRef.current = initGameData(w, h, 0, highScoreRef.current);
-        } else {
-          gameDataRef.current = { ...g, canvasWidth: w, canvasHeight: h };
-        }
-      }
-    }
-
-    // Init canvas
-    const canvas = canvasRef.current;
-    if (canvas) {
-      const dpr = window.devicePixelRatio || 1;
-      const w = window.innerWidth;
-      const h = window.innerHeight;
-      canvas.width = w * dpr;
-      canvas.height = h * dpr;
-      canvas.style.width = `${w}px`;
-      canvas.style.height = `${h}px`;
-      const ctx2 = canvas.getContext("2d");
-      if (ctx2) ctx2.scale(dpr, dpr);
-      gameDataRef.current = initGameData(w, h, 0, highScoreRef.current);
-      canvas.focus();
-    }
-
-    window.addEventListener("keydown", onKeyDown);
-    window.addEventListener("keyup", onKeyUp);
-    window.addEventListener("resize", onResize);
-    animFrameRef.current = requestAnimationFrame(gameLoop);
-
-    return () => {
-      window.removeEventListener("keydown", onKeyDown);
-      window.removeEventListener("keyup", onKeyUp);
-      window.removeEventListener("resize", onResize);
-      cancelAnimationFrame(animFrameRef.current);
-    };
-  }, []); // One-time init — all dependencies accessed via refs
-
-  // ── Touch helpers ─────────────────────────────────────────────────────────
-  const setTouchLeft = (active: boolean) => {
-    inputRef.current.left = active;
-  };
-  const setTouchRight = (active: boolean) => {
-    inputRef.current.right = active;
-  };
-  const setTouchShoot = (active: boolean) => {
-    inputRef.current.shoot = active;
-  };
-
-  const touchProps = (setter: (v: boolean) => void) => ({
-    onTouchStart: (e: React.TouchEvent) => {
-      e.preventDefault();
-      setter(true);
-    },
-    onTouchEnd: (e: React.TouchEvent) => {
-      e.preventDefault();
-      setter(false);
-    },
-    onMouseDown: () => setter(true),
-    onMouseUp: () => setter(false),
-    onMouseLeave: () => setter(false),
-  });
-
-  const isGameOver = uiState.gameState === "game-over";
-  const isStart = uiState.gameState === "start";
-
+function Footer() {
   return (
-    <div className="relative w-screen h-screen overflow-hidden bg-black select-none">
-      <Toaster theme="dark" position="top-center" />
-
-      {/* Game Canvas */}
-      <canvas
-        ref={canvasRef}
-        tabIndex={0}
-        className="absolute inset-0 outline-none"
-        style={{ display: "block", cursor: "none" }}
-      />
-
-      {/* Start screen — tap button for mobile */}
-      {isStart && (
-        <div className="absolute bottom-32 left-1/2 -translate-x-1/2 md:hidden">
-          <button
-            type="button"
-            className="px-10 py-3 text-sm font-bold tracking-widest border border-cyan-400/60 text-cyan-300 bg-black/70 rounded active:scale-95 transition-transform"
-            style={{ fontFamily: FONT_MONO }}
-            onClick={startGame}
-          >
-            TAP TO START
-          </button>
-        </div>
-      )}
-
-      {/* Game Over React Overlay */}
-      {isGameOver && (
-        <div
-          className="absolute inset-0 flex flex-col items-center justify-center"
-          style={{ fontFamily: FONT_MONO }}
-        >
-          {/* Spacer to sit below canvas GAME OVER text */}
-          <div className="h-[42vh]" />
-
-          {/* Score display */}
-          <div className="text-center mb-6">
-            <div className="text-sm text-gray-400 tracking-widest mb-1">
-              FINAL SCORE
-            </div>
-            <div
-              className="text-5xl font-bold tracking-wider"
-              style={{ color: "#ffe040", textShadow: "0 0 20px #ffe040" }}
-            >
-              {String(uiState.score).padStart(6, "0")}
-            </div>
-            <div className="text-sm text-gray-400 mt-1">
-              WAVE {uiState.wave} REACHED
-            </div>
-          </div>
-
-          {/* Leaderboard submit */}
-          {!submitted ? (
-            <div className="flex flex-col items-center gap-3 w-64">
-              <div className="text-xs text-gray-500 tracking-widest">
-                ENTER YOUR NAME
-              </div>
-              <input
-                type="text"
-                maxLength={16}
-                value={playerName}
-                onChange={(e) => setPlayerName(e.target.value)}
-                onKeyDown={(e) => {
-                  e.stopPropagation();
-                  if (e.key === "Enter") void handleSubmitScore();
-                }}
-                placeholder="PILOT NAME"
-                className="w-full px-3 py-2 text-center text-sm tracking-widest bg-black/70 border border-cyan-500/40 text-cyan-200 rounded outline-none focus:border-cyan-400 placeholder:text-gray-600"
-                style={{ fontFamily: FONT_MONO }}
-              />
-              <button
-                type="button"
-                onClick={() => void handleSubmitScore()}
-                disabled={!playerName.trim()}
-                className="w-full px-6 py-2 text-sm font-bold tracking-widest bg-cyan-500/20 border border-cyan-400/60 text-cyan-300 rounded hover:bg-cyan-500/30 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-                style={{ fontFamily: FONT_MONO }}
-              >
-                SUBMIT SCORE
-              </button>
-            </div>
-          ) : (
-            <div className="text-sm text-cyan-400 tracking-widest mb-3">
-              ✓ SCORE SUBMITTED
-            </div>
-          )}
-
-          {/* Leaderboard */}
-          <div className="mt-6 w-72">
-            <div className="text-xs text-gray-500 tracking-widest text-center mb-2">
-              — TOP SCORES —
-            </div>
-            {loadingLeaderboard ? (
-              <div className="text-xs text-gray-600 text-center">
-                LOADING...
-              </div>
-            ) : (
-              <div className="space-y-1">
-                {leaderboard.slice(0, 8).map((entry, i) => (
-                  <div
-                    key={`${entry.playerName}-${String(entry.score)}-${i}`}
-                    className="flex justify-between items-center px-3 py-1 rounded text-xs"
-                    style={{
-                      background:
-                        i === 0
-                          ? "rgba(0, 245, 255, 0.08)"
-                          : "rgba(255,255,255,0.03)",
-                      borderLeft:
-                        i === 0
-                          ? "2px solid rgba(0,245,255,0.4)"
-                          : "2px solid transparent",
-                      fontFamily: FONT_MONO,
-                    }}
-                  >
-                    <span
-                      className="text-gray-500"
-                      style={{
-                        color: i === 0 ? "#ffe040" : i < 3 ? "#aaa" : "#555",
-                      }}
-                    >
-                      {String(i + 1).padStart(2, "0")}
-                    </span>
-                    <span
-                      className="flex-1 mx-3 truncate"
-                      style={{ color: i === 0 ? "#00f5ff" : "#999" }}
-                    >
-                      {entry.playerName.toUpperCase()}
-                    </span>
-                    <span style={{ color: i === 0 ? "#ffe040" : "#666" }}>
-                      {String(Number(entry.score)).padStart(6, "0")}
-                    </span>
-                  </div>
-                ))}
-                {leaderboard.length === 0 && (
-                  <div className="text-xs text-gray-700 text-center py-2">
-                    NO SCORES YET
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-
-          {/* Play Again */}
-          <button
-            type="button"
-            onClick={restartGame}
-            className="mt-6 px-10 py-3 text-sm font-bold tracking-widest border border-cyan-400/60 text-cyan-300 bg-black/70 rounded hover:bg-cyan-500/10 active:scale-95 transition-all"
-            style={{
-              fontFamily: FONT_MONO,
-              boxShadow: "0 0 20px rgba(0,245,255,0.15)",
-            }}
-          >
-            PLAY AGAIN
-          </button>
-        </div>
-      )}
-
-      {/* Touch Controls */}
-      <div className="md:hidden absolute bottom-6 left-0 right-0 flex justify-between items-end px-6 pointer-events-none">
-        {/* Left / Right */}
-        <div className="flex gap-3 pointer-events-auto">
-          <button
-            type="button"
-            className="w-16 h-16 rounded-full bg-black/60 border border-cyan-500/30 text-cyan-300 text-2xl flex items-center justify-center active:bg-cyan-500/20 select-none"
-            {...touchProps(setTouchLeft)}
-            aria-label="Move left"
-          >
-            ◀
-          </button>
-          <button
-            type="button"
-            className="w-16 h-16 rounded-full bg-black/60 border border-cyan-500/30 text-cyan-300 text-2xl flex items-center justify-center active:bg-cyan-500/20 select-none"
-            {...touchProps(setTouchRight)}
-            aria-label="Move right"
-          >
-            ▶
-          </button>
-        </div>
-
-        {/* Fire */}
-        <div className="pointer-events-auto">
-          <button
-            type="button"
-            className="w-20 h-20 rounded-full bg-cyan-500/20 border-2 border-cyan-400/50 text-cyan-200 text-sm font-bold flex items-center justify-center active:bg-cyan-500/40 select-none tracking-widest"
-            style={{
-              fontFamily: FONT_MONO,
-              boxShadow: "0 0 20px rgba(0,245,255,0.2)",
-            }}
-            {...touchProps(setTouchShoot)}
-            aria-label="Fire"
-          >
-            FIRE
-          </button>
-        </div>
+    <footer className="flex-shrink-0 border-t border-border bg-card/40 px-4 py-2.5 flex items-center justify-between">
+      <div className="text-xs text-muted-foreground">
+        Xeta Defender v1.421.2760.0 &mdash; Definitions: 1.421.2760.0
       </div>
-
-      {/* Footer */}
-      <div
-        className="absolute bottom-1 left-1/2 -translate-x-1/2 text-center text-xs pointer-events-none md:block hidden"
-        style={{ color: "rgba(100,140,160,0.35)", fontFamily: FONT_MONO }}
-      >
-        © {new Date().getFullYear()}.{" "}
+      <div className="text-xs text-muted-foreground">
+        &copy; {new Date().getFullYear()}.{" "}
         <a
           href={`https://caffeine.ai?utm_source=caffeine-footer&utm_medium=referral&utm_content=${encodeURIComponent(window.location.hostname)}`}
-          className="hover:text-cyan-600 transition-colors pointer-events-auto"
+          className="hover:text-foreground transition-colors"
           target="_blank"
           rel="noopener noreferrer"
-          style={{ color: "rgba(100,140,160,0.35)" }}
         >
           Built with ♥ using caffeine.ai
         </a>
+      </div>
+    </footer>
+  );
+}
+
+export default function App() {
+  const [state, setState] = useState<SecurityState>(() => loadState());
+  const [currentPage, setCurrentPage] = useState<Page>("dashboard");
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [isScanning, setIsScanning] = useState(false);
+  const [scanProgress, setScanProgress] = useState(0);
+  const [scanType, setScanType] = useState("Quick Scan");
+  const scanIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Persist state to localStorage whenever it changes
+  useEffect(() => {
+    saveState(state);
+  }, [state]);
+
+  const updateState = useCallback(
+    (updater: (prev: SecurityState) => SecurityState) => {
+      setState(updater);
+    },
+    [],
+  );
+
+  // ── Toggles ────────────────────────────────────────────────────────────────
+  const toggleRealtime = useCallback(() => {
+    updateState((prev) => {
+      const next = { ...prev, realtimeProtection: !prev.realtimeProtection };
+      if (!next.realtimeProtection) {
+        toast.warning("Real-time protection disabled. Your device is at risk.");
+      } else {
+        toast.success("Real-time protection enabled.");
+      }
+      return next;
+    });
+  }, [updateState]);
+
+  const toggleCloud = useCallback(() => {
+    updateState((prev) => ({
+      ...prev,
+      cloudProtection: !prev.cloudProtection,
+    }));
+  }, [updateState]);
+
+  const toggleFirewallDomain = useCallback(() => {
+    updateState((prev) => ({
+      ...prev,
+      firewallDomain: !prev.firewallDomain,
+    }));
+  }, [updateState]);
+
+  const toggleFirewallPrivate = useCallback(() => {
+    updateState((prev) => ({
+      ...prev,
+      firewallPrivate: !prev.firewallPrivate,
+    }));
+  }, [updateState]);
+
+  const toggleFirewallPublic = useCallback(() => {
+    updateState((prev) => ({
+      ...prev,
+      firewallPublic: !prev.firewallPublic,
+    }));
+  }, [updateState]);
+
+  const toggleReputation = useCallback(() => {
+    updateState((prev) => ({
+      ...prev,
+      reputationProtection: !prev.reputationProtection,
+    }));
+  }, [updateState]);
+
+  const toggleExploit = useCallback(() => {
+    updateState((prev) => ({
+      ...prev,
+      exploitProtection: !prev.exploitProtection,
+    }));
+  }, [updateState]);
+
+  const toggleCoreIsolation = useCallback(() => {
+    updateState((prev) => ({
+      ...prev,
+      coreIsolation: !prev.coreIsolation,
+    }));
+  }, [updateState]);
+
+  const toggleSecureBoot = useCallback(() => {
+    updateState((prev) => ({
+      ...prev,
+      secureBootEnabled: !prev.secureBootEnabled,
+    }));
+  }, [updateState]);
+
+  const toggleChecklistItem = useCallback(
+    (id: string) => {
+      updateState((prev) => ({
+        ...prev,
+        checklist: prev.checklist.map((item) =>
+          item.id === id ? { ...item, completed: !item.completed } : item,
+        ),
+      }));
+    },
+    [updateState],
+  );
+
+  // ── Scan logic ─────────────────────────────────────────────────────────────
+  const runScan = useCallback(
+    (type: "quick" | "full" | "custom") => {
+      if (isScanning) return;
+      const labels = {
+        quick: "Quick Scan",
+        full: "Full Scan",
+        custom: "Custom Scan",
+      };
+      const durations = { quick: 4000, full: 8000, custom: 5000 };
+      const label = labels[type];
+      const duration = durations[type];
+      setScanType(label);
+      setScanProgress(0);
+      setIsScanning(true);
+      setCurrentPage("virus-threat");
+
+      const startTime = Date.now();
+      if (scanIntervalRef.current) clearInterval(scanIntervalRef.current);
+
+      scanIntervalRef.current = setInterval(() => {
+        const elapsed = Date.now() - startTime;
+        const progress = Math.min(100, Math.round((elapsed / duration) * 100));
+        setScanProgress(progress);
+
+        if (progress >= 100) {
+          if (scanIntervalRef.current) clearInterval(scanIntervalRef.current);
+          setIsScanning(false);
+
+          // Generate random threats (0-3)
+          const threatCount = Math.floor(Math.random() * 4); // 0, 1, 2, or 3
+          const now = new Date().toISOString();
+
+          updateState((prev) => {
+            const newThreats = Array.from({ length: threatCount }, (_, i) =>
+              generateThreat(`scan-${Date.now()}-${i}`),
+            );
+            return {
+              ...prev,
+              threats: [...newThreats, ...prev.threats],
+              lastScanDate: now,
+              lastScanType: label,
+              lastScanThreatsFound: threatCount,
+            };
+          });
+
+          if (threatCount > 0) {
+            toast.error(
+              `${label} complete — ${threatCount} threat${threatCount > 1 ? "s" : ""} detected!`,
+              { duration: 5000 },
+            );
+          } else {
+            toast.success(`${label} complete — No threats found.`, {
+              duration: 4000,
+            });
+          }
+        }
+      }, 100);
+    },
+    [isScanning, updateState],
+  );
+
+  // Quick scan shortcut from dashboard
+  const handleDashboardScan = useCallback(() => {
+    runScan("quick");
+  }, [runScan]);
+
+  // ── Threat actions ─────────────────────────────────────────────────────────
+  const quarantineThreat = useCallback(
+    (id: string) => {
+      updateState((prev) => ({
+        ...prev,
+        threats: prev.threats.map((t) =>
+          t.id === id ? { ...t, status: "Quarantined" as const } : t,
+        ),
+      }));
+      toast.success("Threat quarantined successfully.");
+    },
+    [updateState],
+  );
+
+  const removeThreat = useCallback(
+    (id: string) => {
+      updateState((prev) => ({
+        ...prev,
+        threats: prev.threats.filter((t) => t.id !== id),
+      }));
+      toast.success("Threat removed permanently.");
+    },
+    [updateState],
+  );
+
+  const restoreThreat = useCallback(
+    (id: string) => {
+      updateState((prev) => ({
+        ...prev,
+        threats: prev.threats.map((t) =>
+          t.id === id ? { ...t, status: "Resolved" as const } : t,
+        ),
+      }));
+      toast.info("Item restored from quarantine.");
+    },
+    [updateState],
+  );
+
+  // Cleanup interval on unmount
+  useEffect(() => {
+    return () => {
+      if (scanIntervalRef.current) clearInterval(scanIntervalRef.current);
+    };
+  }, []);
+
+  const activeThreats = state.threats.filter(
+    (t) => t.status === "Active",
+  ).length;
+  const isProtected =
+    state.realtimeProtection &&
+    state.firewallDomain &&
+    state.firewallPrivate &&
+    state.firewallPublic &&
+    activeThreats === 0;
+
+  // ── Page renderer ──────────────────────────────────────────────────────────
+  function renderPage() {
+    switch (currentPage) {
+      case "dashboard":
+        return (
+          <Dashboard
+            state={state}
+            onToggleRealtime={toggleRealtime}
+            onNavigate={setCurrentPage}
+            onRunScan={handleDashboardScan}
+          />
+        );
+      case "virus-threat":
+        return (
+          <VirusThreat
+            state={state}
+            onToggleRealtime={toggleRealtime}
+            onToggleCloud={toggleCloud}
+            onRunScan={runScan}
+            isScanning={isScanning}
+            scanProgress={scanProgress}
+            scanType={scanType}
+            onQuarantine={quarantineThreat}
+            onRemove={removeThreat}
+            onRestore={restoreThreat}
+          />
+        );
+      case "firewall":
+        return (
+          <Firewall
+            state={state}
+            onToggleDomain={toggleFirewallDomain}
+            onTogglePrivate={toggleFirewallPrivate}
+            onTogglePublic={toggleFirewallPublic}
+          />
+        );
+      case "app-browser":
+        return (
+          <AppBrowser
+            state={state}
+            onToggleReputation={toggleReputation}
+            onToggleExploit={toggleExploit}
+          />
+        );
+      case "device-security":
+        return (
+          <DeviceSecurity
+            state={state}
+            onToggleCoreIsolation={toggleCoreIsolation}
+            onToggleSecureBoot={toggleSecureBoot}
+          />
+        );
+      case "checklist":
+        return (
+          <SecurityChecklist
+            checklist={state.checklist}
+            onToggleItem={toggleChecklistItem}
+          />
+        );
+      case "password-checker":
+        return <PasswordChecker />;
+      default:
+        return null;
+    }
+  }
+
+  return (
+    <div className="flex h-screen overflow-hidden bg-background">
+      <Toaster
+        theme="dark"
+        position="top-right"
+        toastOptions={{
+          style: {
+            background: "oklch(0.15 0.022 258)",
+            border: "1px solid oklch(0.22 0.025 255)",
+            color: "oklch(0.93 0.015 220)",
+          },
+        }}
+      />
+
+      {/* Desktop sidebar */}
+      <Sidebar
+        currentPage={currentPage}
+        onNavigate={setCurrentPage}
+        threatCount={activeThreats}
+        protectionActive={isProtected}
+      />
+
+      {/* Mobile nav overlay */}
+      <MobileNav
+        currentPage={currentPage}
+        onNavigate={setCurrentPage}
+        isOpen={mobileMenuOpen}
+        onClose={() => setMobileMenuOpen(false)}
+        threatCount={activeThreats}
+        protectionActive={isProtected}
+      />
+
+      {/* Main content area */}
+      <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
+        <Header
+          currentPage={currentPage}
+          protectionActive={isProtected}
+          mobileMenuOpen={mobileMenuOpen}
+          onToggleMobileMenu={() => setMobileMenuOpen((v) => !v)}
+        />
+        <div className="flex-1 overflow-y-auto">{renderPage()}</div>
+        <Footer />
       </div>
     </div>
   );

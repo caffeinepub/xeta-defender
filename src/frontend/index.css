@@ -3,6 +3,22 @@
 @tailwind utilities;
 
 @font-face {
+  font-family: "Outfit";
+  src: url("/assets/fonts/Outfit-Variable.woff2") format("woff2");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Sora";
+  src: url("/assets/fonts/Sora-Variable.woff2") format("woff2");
+  font-weight: 100 800;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
   font-family: "JetBrains Mono";
   src: url("/assets/fonts/JetBrainsMono-Variable.woff2") format("woff2");
   font-weight: 100 900;
@@ -10,75 +26,134 @@
   font-display: swap;
 }
 
-@font-face {
-  font-family: "Geist Mono";
-  src: url("/assets/fonts/GeistMono-Variable.woff2") format("woff2");
-  font-weight: 100 900;
-  font-style: normal;
-  font-display: swap;
-}
-
 @layer base {
   :root {
-    --radius: 0.25rem;
+    --radius: 0.5rem;
 
-    /* Xeta Defender — Deep Space Dark Theme */
-    --background: 0.08 0.015 260;
-    --foreground: 0.95 0.05 200;
-    --card: 0.12 0.02 260;
-    --card-foreground: 0.95 0.05 200;
-    --popover: 0.1 0.015 260;
-    --popover-foreground: 0.95 0.05 200;
+    /* Xeta Defender — Enterprise Dark Navy Theme */
+    /* Deep navy backgrounds */
+    --background: 0.12 0.025 260;
+    --foreground: 0.93 0.015 220;
+    --card: 0.15 0.022 258;
+    --card-foreground: 0.92 0.015 220;
+    --popover: 0.13 0.022 258;
+    --popover-foreground: 0.92 0.015 220;
 
-    /* Cyan primary */
-    --primary: 0.75 0.18 195;
-    --primary-foreground: 0.05 0.02 260;
+    /* Electric blue primary — defender accent */
+    --primary: 0.62 0.2 240;
+    --primary-foreground: 0.98 0.005 260;
 
-    /* Magenta secondary */
-    --secondary: 0.65 0.22 330;
-    --secondary-foreground: 0.95 0.02 260;
+    /* Slate secondary */
+    --secondary: 0.2 0.02 255;
+    --secondary-foreground: 0.88 0.015 220;
 
-    --muted: 0.18 0.02 260;
-    --muted-foreground: 0.55 0.05 240;
+    --muted: 0.18 0.018 255;
+    --muted-foreground: 0.55 0.03 240;
 
-    /* Electric yellow accent */
-    --accent: 0.88 0.22 95;
-    --accent-foreground: 0.05 0.02 260;
+    /* Cyan accent — status indicators */
+    --accent: 0.7 0.16 200;
+    --accent-foreground: 0.1 0.02 255;
 
-    --destructive: 0.65 0.22 25;
+    --destructive: 0.58 0.22 25;
     --destructive-foreground: 0.98 0 0;
 
-    --border: 0.25 0.04 260;
-    --input: 0.2 0.03 260;
-    --ring: 0.75 0.18 195;
+    --border: 0.22 0.025 255;
+    --input: 0.19 0.022 255;
+    --ring: 0.62 0.2 240;
 
-    --chart-1: 0.75 0.18 195;
-    --chart-2: 0.65 0.22 330;
-    --chart-3: 0.88 0.22 95;
-    --chart-4: 0.7 0.2 280;
-    --chart-5: 0.65 0.22 25;
+    /* Semantic status colors */
+    --success: 0.65 0.18 145;
+    --success-foreground: 0.98 0.01 145;
+    --warning: 0.75 0.18 75;
+    --warning-foreground: 0.15 0.02 75;
+    --critical: 0.55 0.24 20;
+    --critical-foreground: 0.98 0.01 20;
 
-    --sidebar: 0.1 0.015 260;
-    --sidebar-foreground: 0.95 0.05 200;
-    --sidebar-primary: 0.75 0.18 195;
-    --sidebar-primary-foreground: 0.05 0.02 260;
-    --sidebar-accent: 0.18 0.02 260;
-    --sidebar-accent-foreground: 0.95 0.05 200;
-    --sidebar-border: 0.25 0.04 260;
-    --sidebar-ring: 0.75 0.18 195;
+    --chart-1: 0.62 0.2 240;
+    --chart-2: 0.65 0.18 145;
+    --chart-3: 0.75 0.18 75;
+    --chart-4: 0.58 0.22 25;
+    --chart-5: 0.68 0.18 200;
+
+    --sidebar: 0.1 0.022 260;
+    --sidebar-foreground: 0.92 0.015 220;
+    --sidebar-primary: 0.62 0.2 240;
+    --sidebar-primary-foreground: 0.98 0.005 260;
+    --sidebar-accent: 0.17 0.02 258;
+    --sidebar-accent-foreground: 0.92 0.015 220;
+    --sidebar-border: 0.2 0.022 258;
+    --sidebar-ring: 0.62 0.2 240;
   }
 
   * {
     @apply border-border;
   }
 
+  html {
+    color-scheme: dark;
+  }
+
   body {
     @apply bg-background text-foreground;
-    font-family: "JetBrains Mono", "Geist Mono", monospace;
+    font-family: "Outfit", "Sora", system-ui, sans-serif;
     overflow: hidden;
   }
 
-  html {
-    color-scheme: dark;
+  /* Custom scrollbar */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: oklch(var(--muted));
+  }
+  ::-webkit-scrollbar-thumb {
+    background: oklch(var(--border));
+    border-radius: 3px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: oklch(var(--primary) / 0.6);
+  }
+}
+
+@layer utilities {
+  .status-safe {
+    color: oklch(var(--success));
+  }
+  .status-warning {
+    color: oklch(var(--warning));
+  }
+  .status-critical {
+    color: oklch(var(--critical));
+  }
+  .bg-status-safe {
+    background-color: oklch(var(--success) / 0.15);
+  }
+  .bg-status-warning {
+    background-color: oklch(var(--warning) / 0.15);
+  }
+  .bg-status-critical {
+    background-color: oklch(var(--critical) / 0.15);
+  }
+  .border-status-safe {
+    border-color: oklch(var(--success) / 0.4);
+  }
+  .border-status-warning {
+    border-color: oklch(var(--warning) / 0.4);
+  }
+  .border-status-critical {
+    border-color: oklch(var(--critical) / 0.4);
+  }
+  .glow-blue {
+    box-shadow: 0 0 20px oklch(var(--primary) / 0.3);
+  }
+  .glow-green {
+    box-shadow: 0 0 20px oklch(var(--success) / 0.3);
+  }
+  .text-gradient-blue {
+    background: linear-gradient(135deg, oklch(var(--primary)), oklch(var(--accent)));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
   }
 }
